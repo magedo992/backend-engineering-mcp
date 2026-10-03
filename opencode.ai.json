@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "backend-auditor": {
+      "command": "npx",
+      "args": [
+        "tsx",
+      "C:/Users/ahmed/OneDrive/Desktop/backend-engineering-mcp/src/index.ts"
+      ]
+    }
+  }
+}

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backend Auditor Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-[#09090B] text-zinc-100">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useEffect } = React;
+
+    function StackCard({ label, value, sub, gradient, highlight }) {
+      return (
+        <div className={`rounded-2xl border p-5 ${gradient ? 'bg-gradient-to-br from-violet-600/20 to-indigo-600/20 border-violet-500/20' : 'bg-zinc-900 border-zinc-800'}`}>
+          <p className="text-[11px] tracking-widest text-zinc-500 uppercase mb-2">{label}</p>
+          <p className="text-lg font-bold">{value || '—'}</p>
+          <p className={`text-xs mt-1 font-mono ${highlight ? 'text-violet-400' : 'text-zinc-500'}`}>{sub}</p>
+        </div>
+      );
+    }
+
+    function AuditDashboard({ data }) {
+      const { profile, findings, score } = data;
+      const [filter, setFilter] = useState("ALL");
+
+      const projectName = useMemo(() => {
+        if (!profile?.rootPath) return "Unknown Project";
+        const parts = profile.rootPath.split(/[\/\\]/).filter(Boolean);
+        return parts[parts.length - 1] || "Unknown Project";
+      }, [profile?.rootPath]);
+
+      const filteredFindings = filter === "ALL" 
+        ? findings 
+        : filter === 'HIGH' 
+          ? findings.filter(f => ['HIGH', 'CRITICAL', 'BLOCKER'].includes(f.severity))
+          : findings.filter(f => f.severity === filter);
+
+      const stats = {
+        medium: findings.filter(f => f.severity === 'MEDIUM').length,
+        low: findings.filter(f => f.severity === 'LOW').length,
+        high: findings.filter(f => ['HIGH','CRITICAL','BLOCKER'].includes(f.severity)).length,
+      };
+
+      const healthScore = score !== undefined ? score : Math.max(0, 100 - (stats.high * 20 + stats.medium * 10 + stats.low * 3));
+
+      return (
+        <div className="min-h-screen p-6 lg:p-8 font-sans">
+          <div className="flex flex-col lg:flex-row justify-between gap-4 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-xl font-bold">
+                {projectName.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight capitalize">{projectName}</h1>
+                <p className="text-xs text-zinc-500 font-mono max-w-[400px] truncate">{profile.rootPath}</p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border ${healthScore > 80 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
+                Health: {healthScore}%
+              </span>
+            </div>
+            <div className="text-right bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2">
+              <p className="text-[11px] text-zinc-500 uppercase tracking-widest">Detected At</p>
+              <p className="text-sm font-mono">{profile.detectedAt ? new Date(profile.detectedAt).toLocaleString() : 'N/A'}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <StackCard 
+              label="Ecosystem" 
+              value={profile.ecosystem?.value} 
+              sub={`${profile.packageManager?.value || 'npm'}${profile.packageManager?.installedVersion ? ` • ${profile.packageManager.installedVersion}` : ''}`} 
+            />
+            <StackCard 
+              label="Language" 
+              value={profile.language?.value} 
+              sub={profile.language?.installedVersion ? `v${profile.language.installedVersion}` : ''} 
+              highlight 
+            />
+            <StackCard 
+              label="Framework" 
+              value={profile.framework?.value} 
+              sub={profile.framework?.installedVersion || ''} 
+              gradient 
+            />
+            <StackCard 
+              label="Database" 
+              value={profile.database?.value} 
+              sub={`${profile.orm?.value || ''} ${profile.orm?.installedVersion || ''}`.trim()} 
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8">
+              <div className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
+                <div className="p-5 border-b border-zinc-800 flex justify-between items-center">
+                  <h2 className="font-semibold">Findings <span className="ml-2 bg-zinc-800 text-zinc-400 px-2 py-1 rounded-full text-xs">{findings.length}</span></h2>
+                  <div className="flex gap-1.5 bg-black p-1 rounded-full border border-zinc-800">
+                    {['ALL', 'HIGH', 'MEDIUM', 'LOW'].map(s => (
+                      <button key={s} onClick={()=>setFilter(s)} className={`px-3 py-1 text-xs rounded-full transition ${filter===s ? 'bg-white text-black font-bold' : 'text-zinc-500 hover:text-white'}`}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="divide-y divide-zinc-800">
+                  {filteredFindings.map((f, i) => (
+                    <div key={f.id || i} className="p-5 hover:bg-zinc-800/40 transition">
+                      <div className="flex gap-3">
+                        <span className={`h-fit px-2.5 py-1 rounded-full text-[11px] font-bold border ${f.severity==='MEDIUM' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : ['HIGH','CRITICAL','BLOCKER'].includes(f.severity) ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>
+                          {f.severity}
+                        </span>
+                        <div className="flex-1">
+                          <div className="flex gap-2 items-center">
+                            <span className="text-xs font-mono text-zinc-500">{f.id}</span>
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700">{f.category}</span>
+                          </div>
+                          <h3 className="font-medium mt-1.5">{f.title}</h3>
+                          <p className="text-sm text-zinc-400 mt-1">{f.message}</p>
+                          {f.file && <code className="text-xs font-mono text-violet-300 bg-violet-500/10 border border-violet-500/20 px-2 py-1 rounded mt-2 inline-block">{f.file}{f.line ? `:${f.line}` : ''}</code>}
+                          {f.recommendation && (
+                            <div className="mt-3 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                              💡 {f.recommendation}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredFindings.length === 0 && (
+                    <div className="p-8 text-center text-zinc-500 text-sm">No findings match this filter.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-4 space-y-6">
+              <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-5">
+                <h3 className="font-semibold mb-4">Project Checks</h3>
+                <div className="space-y-2">
+                  {!profile.scriptsDetected?.test?.value && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 p-2 rounded-lg text-center">⚠ 'test' script missing in package.json</p>}
+                  {!profile.scriptsDetected?.lint?.value && <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg text-center">⚠ 'lint' script missing in package.json</p>}
+                  {profile.scriptsDetected?.test?.value && profile.scriptsDetected?.lint?.value && <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-lg text-center">✓ Essential scripts detected</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [auditData, setAuditData] = useState(null);
+      const [error, setError] = useState(null);
+      const [isDragging, setIsDragging] = useState(false);
+
+      const loadJson = (json) => {
+        const normalized = {
+          profile: json.profile || { 
+            rootPath: json.project?.path || json.project?.name || "Unknown Project",
+            detectedAt: json.generatedAt || json.profile?.detectedAt,
+            ecosystem: { value: json.project?.language ? "Node.js" : "Unknown" },
+            language: { value: json.project?.language, installedVersion: "" },
+            framework: { value: json.project?.framework, installedVersion: "" },
+            database: { value: json.project?.database },
+            orm: { value: json.project?.orm },
+            packageManager: json.packageManager,
+            structure: json.structure || {},
+            scriptsDetected: json.scriptsDetected || {},
+            ...json.profile
+          },
+          findings: json.findings || [],
+          score: json.score 
+        };
+        setAuditData(normalized);
+        setError(null);
+      };
+
+      useEffect(() => {
+        fetch('./audit.json')
+          .then(res => {
+            if (!res.ok) throw new Error("اسحب ملف audit.json هنا");
+            return res.json();
+          })
+          .then(loadJson)
+          .catch(err => setError(err.message));
+      }, []);
+
+      const onDrop = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try { loadJson(JSON.parse(ev.target.result)) } 
+          catch { setError("ملف JSON غير صالح") }
+        };
+        reader.readAsText(file);
+      };
+
+      if (!auditData) {
+        return (
+          <div 
+            onDragOver={(e)=>{e.preventDefault(); setIsDragging(true)}}
+            onDragLeave={()=>setIsDragging(false)}
+            onDrop={onDrop}
+            className={`min-h-screen flex flex-col items-center justify-center p-8 text-center border-2 border-dashed m-6 rounded-3xl transition ${isDragging ? 'border-violet-500 bg-violet-500/10' : 'border-zinc-800 bg-zinc-900/50'}`}
+          >
+            <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center text-2xl mb-4">📊</div>
+            <h2 className="text-xl font-bold">اسحب ملف audit.json هنا</h2>
+            <p className="text-sm text-zinc-500 mt-2 max-w-md">الصفحة هتقرأ أي تقرير من الـ Auditor وتعرضه فوراً - اسم المشروع بيتغير أوتوماتيك من الـ `rootPath`</p>
+            {error && error !== "اسحب ملف audit.json هنا" && <p className="text-amber-400 text-xs mt-4 bg-amber-500/10 px-3 py-1 rounded-full">{error}</p>}
+            <label className="mt-6 px-6 py-2.5 bg-white text-black rounded-full text-sm font-bold cursor-pointer hover:bg-zinc-200">
+              اختار الملف يدوياً
+              <input type="file" accept=".json" className="hidden" onChange={(e)=>{
+                const file = e.target.files[0];
+                if(!file) return;
+                const r = new FileReader();
+                r.onload = (ev)=> loadJson(JSON.parse(ev.target.result));
+                r.readAsText(file);
+              }} />
+            </label>
+          </div>
+        );
+      }
+
+      return (
+        <div onDragOver={(e)=>{e.preventDefault(); setIsDragging(true)}} onDragLeave={()=>setIsDragging(false)} onDrop={onDrop}>
+          {isDragging && <div className="fixed inset-0 bg-violet-600/20 border-4 border-violet-500 z-50 flex items-center justify-center text-xl font-bold pointer-events-none">ارمي الملف هنا</div>}
+          <AuditDashboard data={auditData} />
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
