@@ -124,7 +124,7 @@ Every value is `DetectedValue<T>`: `{ value, confidence, evidence[], declaredVer
 ### Install
 
 ```bash
-git clone https://github.com/<your-org>/backend-engineering-mcp.git
+git clone https://github.com/magedo992/backend-engineering-mcp.git
 cd backend-engineering-mcp
 npm install
 npm run build
@@ -178,15 +178,18 @@ export interface AuditFinding {
 
 ```json
 {
-  "generatedAt": "2026-09-22T17:59:21.765Z",
-  "profile": { "framework": "Express", "database": "MongoDB", "orm": "Mongoose" },
+  "generatedAt": "2026-10-03T21:16:09.949Z",
+  "profile": { "framework": "Express", "database": "PostgreSQL", "orm": "Prisma" },
   "findings": [
     {
       "id": "DB-RELIABILITY-001",
+      "source": "query-analyzer",
       "severity": "HIGH",
-      "title": "Multiple writes without transaction",
+      "category": "DATABASE",
+      "title": "Multiple database mutation writes without transaction isolation",
       "file": "src/services/staffProfile.service.ts",
-      "line": 4
+      "line": 4,
+      "recommendation": "Wrap mutations in transaction: prisma.$transaction"
     }
   ]
 }

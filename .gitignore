@@ -1,4 +1,7 @@
-.env
-node_modules/
-dist/
 reports/
+public/audit.json
+dist/
+node_modules/
+.env
+.continue/
+.gitignore
